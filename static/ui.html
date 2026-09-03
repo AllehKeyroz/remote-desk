@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Controle Remoto</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0d1117; color: #e6edf3;
+    font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  .hidden { display: none !important; }
+
+  /* ---------- tela inicial ---------- */
+  #idle { position: fixed; inset: 0; display: flex; align-items: center;
+    justify-content: center; background: radial-gradient(1200px 600px at 50% -10%, #161b22, #0d1117); }
+  #card { width: 380px; text-align: center; }
+  #card h1 { font-size: 22px; margin: 0 0 2px; letter-spacing: .3px; }
+  #card .sub { color: #8b949e; font-size: 13px; margin: 0 0 28px; }
+  .id-label { color: #8b949e; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 1.5px; margin-bottom: 8px; }
+  .id-value { font-size: 42px; font-weight: 700; letter-spacing: 4px;
+    font-family: "Consolas", monospace; color: #58a6ff; margin-bottom: 6px; }
+  .status-line { font-size: 13px; color: #8b949e; margin-bottom: 24px; }
+  .status-line .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #f85149; margin-right: 6px; vertical-align: middle; }
+  .status-line .dot.on { background: #3fb950; }
+  #card input[type=text] { width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid #30363d; background: #0d1117; color: #e6edf3;
+    font-size: 16px; text-align: center; letter-spacing: 2px; text-transform: uppercase;
+    outline: none; margin-bottom: 12px; }
+  #card input[type=text]:focus { border-color: #58a6ff; }
+  #card .btn { width: 100%; padding: 12px; border-radius: 10px; border: none;
+    background: #238636; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  #card .btn:hover { background: #2ea043; }
+  #card .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+  #card .hint { margin-top: 14px; font-size: 12px; color: #484f58; }
+  #settingsToggle { margin-top: 18px; background: none; border: none; color: #58a6ff;
+    font-size: 12px; cursor: pointer; text-decoration: underline; }
+  #settings { margin-top: 14px; display: none; }
+  #settings input { width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid #30363d; background: #0d1117; color: #e6edf3;
+    font-size: 13px; outline: none; }
+  #settings .save { margin-top: 8px; padding: 8px; border-radius: 8px; border: 1px solid #30363d;
+    background: #21262d; color: #e6edf3; font-size: 12px; cursor: pointer; width: 100%; }
+  #settings .save:hover { background: #30363d; }
+  #error { margin-top: 12px; color: #f85149; font-size: 13px; min-height: 18px; }
+
+  /* ---------- prompt de controle recebido ---------- */
+  #incoming { position: fixed; inset: 0; display: flex; align-items: center;
+    justify-content: center; background: rgba(13,17,23,.95); z-index: 40; }
+  #incoming .box { background: #161b22; border: 1px solid #30363d; border-radius: 14px;
+    padding: 28px 32px; width: 360px; text-align: center; }
+  #incoming h2 { margin: 0 0 8px; font-size: 18px; }
+  #incoming p { color: #8b949e; font-size: 14px; margin: 0 0 20px; }
+  #incoming .from { color: #58a6ff; font-weight: 700; letter-spacing: 1px; }
+  #incoming .row { display: flex; gap: 10px; }
+  #incoming .row button { flex: 1; padding: 11px; border-radius: 10px; border: none;
+    font-size: 14px; font-weight: 600; cursor: pointer; }
+  #incoming .accept { background: #238636; color: #fff; }
+  #incoming .accept:hover { background: #2ea043; }
+  #incoming .deny { background: #21262d; color: #f85149; border: 1px solid #30363d; }
+  #incoming .deny:hover { background: #30363d; }
+
+  /* ---------- sessao ---------- */
+  #session { position: fixed; inset: 0; }
+  #toolbar { position: fixed; top: 0; left: 0; right: 0; height: 44px; z-index: 20;
+    display: flex; align-items: center; gap: 14px; padding: 0 14px;
+    background: rgba(13,17,23,.88); backdrop-filter: blur(8px);
+    border-bottom: 1px solid #21262d; font-size: 13px; user-select: none; }
+  #toolbar .dot { width: 10px; height: 10px; border-radius: 50%; background: #3fb950; flex: none; }
+  #toolbar .info { color: #e6edf3; }
+  #toolbar .sep { width: 1px; height: 20px; background: #21262d; }
+  #toolbar label { display: flex; align-items: center; gap: 6px; color: #8b949e; }
+  #toolbar input[type=range] { width: 80px; accent-color: #58a6ff; }
+  #toolbar button { background: #21262d; color: #e6edf3; border: 1px solid #30363d;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+  #toolbar button:hover { background: #30363d; }
+  #toolbar .danger { color: #f85149; border-color: #f8514933; }
+  #toolbar .danger:hover { background: #f851491a; }
+  #screen { position: fixed; inset: 0; top: 44px; width: 100%; height: calc(100% - 44px);
+    cursor: crosshair; background: #000; }
+  #hostBanner { position: fixed; top: 44px; left: 0; right: 0; z-index: 15;
+    background: #1f6feb22; border-bottom: 1px solid #1f6feb55; color: #79c0ff;
+    text-align: center; padding: 8px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+  <!-- Estado: ocioso -->
+  <div id="idle">
+    <div id="card">
+      <h1>Meu Controle Remoto</h1>
+      <div class="sub">Controle qualquer dispositivo com este app</div>
+      <div class="id-label">Seu ID</div>
+      <div class="id-value" id="myId">----</div>
+      <div class="status-line"><span class="dot" id="dot"></span><span id="status">Conectando...</span></div>
+      <input type="text" id="targetId" placeholder="Digite o ID do outro PC" maxlength="9" autocomplete="off">
+      <button class="btn" id="connectBtn" disabled>Conectar</button>
+      <div id="error"></div>
+      <button id="settingsToggle">Configurações</button>
+      <div id="settings">
+        <input type="text" id="relayInput" placeholder="Servidor (relay)">
+        <button class="save" id="saveRelay">Salvar servidor</button>
+      </div>
+      <div class="hint">O outro PC precisa estar com o app aberto e aceitar a conexão</div>
+    </div>
+  </div>
+
+  <!-- Estado: controle recebido -->
+  <div id="incoming" class="hidden">
+    <div class="box">
+      <h2>Controle recebido</h2>
+      <p>O dispositivo <span class="from" id="fromId"></span> quer controlar este PC.</p>
+      <div class="row">
+        <button class="accept" id="acceptBtn">Aceitar</button>
+        <button class="deny" id="denyBtn">Recusar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado: sessao -->
+  <div id="session" class="hidden">
+    <div id="toolbar">
+      <span class="dot"></span>
+      <span class="info" id="sessionInfo"></span>
+      <span class="sep"></span>
+      <label>Qualidade <input type="range" id="quality" min="30" max="95" value="70"></label>
+      <label>FPS <input type="range" id="fpsRange" min="5" max="30" value="15"></label>
+      <span class="sep"></span>
+      <button id="fullscreen">Tela cheia</button>
+      <button id="disconnectBtn" class="danger">Desconectar</button>
+    </div>
+    <div id="hostBanner" class="hidden"></div>
+    <canvas id="screen"></canvas>
+  </div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const idle = $('idle'), incoming = $('incoming'), session = $('session');
+  const canvas = $('screen'), ctx = canvas.getContext('2d');
+  let role = null;          // null | 'controller' | 'host'
+  let remoteW = 1920, remoteH = 1080;
+  let lastMove = 0, scrollAcc = 0;
+  let frameCount = 0, fpsTimer = 0;
+
+  // Acesso seguro a API do pywebview (so existe depois do evento pywebviewready)
+  function api() {
+    return (window.pywebview && window.pywebview.api) || null;
+  }
+  function call(name, ...args) {
+    const a = api();
+    if (a && typeof a[name] === 'function') {
+      try { return a[name](...args); } catch (_) {}
+    }
+    return Promise.resolve();
+  }
+
+  // ---------- estado ----------
+  function showIdle() {
+    idle.classList.remove('hidden');
+    incoming.classList.add('hidden');
+    session.classList.add('hidden');
+    role = null;
+  }
+  function showIncoming(from) {
+    $('fromId').textContent = from;
+    incoming.classList.remove('hidden');
+  }
+  function showSession(data) {
+    idle.classList.add('hidden');
+    incoming.classList.add('hidden');
+    session.classList.remove('hidden');
+    role = data.role;
+    if (role === 'controller') {
+      $('sessionInfo').textContent = 'Controlando ' + data.peer;
+      $('hostBanner').classList.add('hidden');
+      $('toolbar').style.display = '';
+    } else {
+      $('hostBanner').textContent = 'Você está sendo controlado por ' + data.peer;
+      $('hostBanner').classList.remove('hidden');
+      $('toolbar').style.display = 'none';
+    }
+  }
+
+  // ---------- chamadas Python ----------
+  window.onStatus = s => {
+    $('status').textContent = s;
+    $('dot').classList.toggle('on', s === 'online');
+    $('connectBtn').disabled = s !== 'online';
+  };
+  window.onIncoming = from => showIncoming(from);
+  window.onSessionStart = data => showSession(data);
+  window.onSessionEnd = () => { showIdle(); };
+  window.onError = msg => { $('error').textContent = msg; };
+  window.onFrame = b64 => {
+    try {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })).then(draw).catch(() => {});
+    } catch (_) {}
+  };
+
+  function draw(bmp) {
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    const scale = Math.min(cw / bmp.width, ch / bmp.height);
+    const dw = bmp.width * scale, dh = bmp.height * scale;
+    const dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+    if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)) {
+      canvas.width = Math.round(cw * dpr);
+      canvas.height = Math.round(ch * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(bmp, dx, dy, dw, dh);
+    bmp.close();
+    frameCount++;
+    const now = performance.now();
+    if (now - fpsTimer > 1000) {
+      $('sessionInfo').textContent = 'Controlando ' + (role === 'controller' ? '' : '') +
+        (role === 'controller' ? (window._peer || '') : '') + '  ·  ' +
+        Math.round(frameCount * 1000 / (now - fpsTimer)) + ' fps';
+      frameCount = 0; fpsTimer = now;
+    }
+  }
+
+  // ---------- input ----------
+  function toRemote(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    const scale = Math.min(rect.width / remoteW, rect.height / remoteH);
+    const dw = remoteW * scale, dh = remoteH * scale;
+    const dx = (rect.width - dw) / 2, dy = (rect.height - dh) / 2;
+    return { x: Math.round((x - dx) / scale), y: Math.round((y - dy) / scale) };
+  }
+  function btnName(b) { return b === 2 ? 'right' : b === 1 ? 'middle' : 'left'; }
+
+  canvas.addEventListener('mousemove', e => {
+    if (role !== 'controller') return;
+    const now = performance.now();
+    if (now - lastMove < 30) return;
+    lastMove = now;
+    const p = toRemote(e);
+    call('send_input',{ type: 'mouse_move', x: p.x, y: p.y });
+  });
+  canvas.addEventListener('mousedown', e => {
+    if (role !== 'controller') return;
+    const p = toRemote(e);
+    call('send_input',{ type: 'mouse_move', x: p.x, y: p.y });
+    call('send_input',{ type: 'mouse_down', button: btnName(e.button) });
+  });
+  canvas.addEventListener('mouseup', e => {
+    if (role !== 'controller') return;
+    call('send_input',{ type: 'mouse_up', button: btnName(e.button) });
+  });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('wheel', e => {
+    if (role !== 'controller') return;
+    e.preventDefault();
+    scrollAcc += e.deltaY;
+    const step = 100;
+    if (Math.abs(scrollAcc) >= step) {
+      const clicks = Math.trunc(scrollAcc / step);
+      call('send_input',{ type: 'scroll', dy: clicks });
+      scrollAcc -= clicks * step;
+    }
+  }, { passive: false });
+
+  function isTyping() {
+    const el = document.activeElement;
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+  }
+  window.addEventListener('keydown', e => {
+    if (role !== 'controller' || isTyping()) return;
+    if (e.repeat) return;
+    e.preventDefault();
+    call('send_input',{ type: 'key_down', code: e.code });
+  });
+  window.addEventListener('keyup', e => {
+    if (role !== 'controller' || isTyping()) return;
+    e.preventDefault();
+    call('send_input',{ type: 'key_up', code: e.code });
+  });
+
+  // ---------- botoes ----------
+  $('connectBtn').addEventListener('click', () => {
+    const id = $('targetId').value.trim().toUpperCase();
+    if (id) { $('error').textContent = ''; call('connect_to', id); }
+  });
+  $('targetId').addEventListener('keydown', e => { if (e.key === 'Enter') $('connectBtn').click(); });
+  $('acceptBtn').addEventListener('click', () => call('respond_incoming', true, $('fromId').textContent));
+  $('denyBtn').addEventListener('click', () => call('respond_incoming', false, $('fromId').textContent));
+  $('disconnectBtn').addEventListener('click', () => call('disconnect'));
+  $('fullscreen').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  });
+  $('settingsToggle').addEventListener('click', () => {
+    const s = $('settings');
+    s.style.display = s.style.display === 'none' ? 'block' : 'none';
+  });
+  $('saveRelay').addEventListener('click', () => {
+    const url = $('relayInput').value.trim();
+    if (url) call('set_relay', url);
+  });
+
+  function sendConfig() {
+    call('set_config', Number($('quality').value), Number($('fpsRange').value));
+  }
+  $('quality').addEventListener('change', sendConfig);
+  $('fpsRange').addEventListener('change', sendConfig);
+
+  // ---------- init ----------
+  function init() {
+    if (!api()) { setTimeout(init, 200); return; }
+    call('get_id').then(id => { $('myId').textContent = id; });
+    call('get_status').then(s => window.onStatus(s));
+    call('get_relay').then(url => { $('relayInput').value = url; });
+  }
+  window._peer = '';
+  window.addEventListener('pywebviewready', init);
+  if (document.readyState === 'complete') init();
+  else document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>

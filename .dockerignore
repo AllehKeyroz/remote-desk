@@ -1,0 +1,11 @@
+# Ignorar tudo que nao e necessario para a imagem do relay
+.venv
+build
+dist
+tests
+__pycache__
+*.log
+.config.json
+.git
+.gitignore
+README.md
