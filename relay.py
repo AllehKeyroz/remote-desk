@@ -1,10 +1,10 @@
 """Relay do Meu Controle Remoto.
 
-Servidor de rendezvous: os apps se conectam aqui, registram seus IDs e o
-relay faz a ponte entre quem controla e quem e controlado.
+Servidor de rendezvous: os apps se conectam aqui, registram seus IDs (+ nome
+opcional) e o relay faz a ponte entre quem compartilha (server) e quem e
+controlado (client). Tambem serve de "hub de descoberta" (mensagem list).
 
 Pode rodar em QUALQUER maquina com IP publico (VPS) ou com port forwarding.
-Nao tem nenhuma dependencia da rede de quem usa.
 
 Uso:
     python relay.py --port 8765
@@ -18,8 +18,8 @@ from aiohttp import web, WSMsgType
 
 class Relay:
     def __init__(self):
-        self.peers: dict[str, web.WebSocketResponse] = {}
-        self.pairs: dict[str, str] = {}  # id -> id pareado
+        self.peers: dict[str, dict] = {}  # id -> {"ws": ws, "name": str}
+        self.pairs: dict[str, str] = {}  # id -> id pareado (sessao ativa)
 
     def peer_of(self, peer_id: str) -> str | None:
         return self.pairs.get(peer_id)
@@ -28,8 +28,11 @@ class Relay:
         return peer_id in self.peers and peer_id not in self.pairs
 
     async def send(self, peer_id: str, data) -> bool:
-        ws = self.peers.get(peer_id)
-        if ws is None or ws.closed:
+        entry = self.peers.get(peer_id)
+        if entry is None:
+            return False
+        ws = entry["ws"]
+        if ws.closed:
             return False
         try:
             if isinstance(data, bytes):
@@ -47,9 +50,19 @@ class Relay:
         return other
 
     async def handler(self, request: web.Request) -> web.WebSocketResponse:
-        ws = web.WebSocketResponse(heartbeat=30, max_msg_size=8 * 1024 * 1024)
+        ws = web.WebSocketResponse(heartbeat=0, max_msg_size=8 * 1024 * 1024)
         await ws.prepare(request)
         peer_id = None
+
+        def online_list():
+            mine = peer_id
+            out = []
+            for pid, entry in self.peers.items():
+                if pid == mine:
+                    continue
+                out.append({"id": pid, "name": entry.get("name", "")})
+            return out
+
         try:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
@@ -68,15 +81,17 @@ class Relay:
                         other = self.unpair(peer_id)
                         if other:
                             await self.send(other, {"type": "session_end", "peer": peer_id})
-                        # se ha uma conexao antiga ainda aberta, substitui pela nova
+                        # substitui conexao antiga ainda aberta
                         old = self.peers.get(peer_id)
-                        if old is not None and old is not ws and not old.closed:
+                        if old is not None and old["ws"] is not ws and not old["ws"].closed:
                             try:
-                                await old.close()
+                                await old["ws"].close()
                             except Exception:
                                 pass
-                        self.peers[peer_id] = ws
+                        self.peers[peer_id] = {"ws": ws, "name": data.get("name", "")}
                         await ws.send_str(json.dumps({"type": "registered", "id": peer_id}))
+                    elif t == "list":
+                        await ws.send_str(json.dumps({"type": "list", "peers": online_list()}))
                     elif t == "connect":
                         target = data.get("target", "")
                         if target not in self.peers:
