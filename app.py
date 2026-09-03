@@ -335,10 +335,12 @@ class App:
             self.session_info.config(text=f"Controlando {data.get('peer')}", fg="#e6edf3")
             self.host_banner.pack_forget()
             self.session_toolbar.pack(fill="x")
+            self.canvas.pack(fill="both", expand=True)
         else:
             self.host_banner.config(text=f"Você está sendo controlado por {data.get('peer')}")
             self.host_banner.pack(fill="x")
             self.session_toolbar.pack_forget()
+            self.canvas.pack(fill="both", expand=True)
 
     def _ui_session_end(self) -> None:
         self.session_frame.pack_forget()

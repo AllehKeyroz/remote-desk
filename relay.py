@@ -60,10 +60,21 @@ class Relay:
                     t = data.get("type")
                     if t == "register":
                         peer_id = data.get("id", "")
-                        if not peer_id or peer_id in self.peers:
-                            await ws.send_str(json.dumps({"type": "error", "message": "ID em uso"}))
+                        if not peer_id:
+                            await ws.send_str(json.dumps({"type": "error", "message": "ID vazio"}))
                             await ws.close()
                             return ws
+                        # limpa sessao/par antigo deste ID (evita "dispositivo ocupado")
+                        other = self.unpair(peer_id)
+                        if other:
+                            await self.send(other, {"type": "session_end", "peer": peer_id})
+                        # se ha uma conexao antiga ainda aberta, substitui pela nova
+                        old = self.peers.get(peer_id)
+                        if old is not None and old is not ws and not old.closed:
+                            try:
+                                await old.close()
+                            except Exception:
+                                pass
                         self.peers[peer_id] = ws
                         await ws.send_str(json.dumps({"type": "registered", "id": peer_id}))
                     elif t == "connect":
