@@ -12,8 +12,61 @@ Uso:
 
 import argparse
 import json
+import os
+import sys
 
 from aiohttp import web, WSMsgType
+
+PKG_DIR = os.path.join(sys._MEIPASS, "packages") if getattr(sys, "frozen", False) \
+    else os.path.join(os.path.dirname(os.path.abspath(__file__)), "packages")
+
+
+async def index(request: web.Request) -> web.Response:
+    """Pagina de download do app."""
+    packages = []
+    try:
+        for f in sorted(os.listdir(PKG_DIR)):
+            if f.endswith((".zip", ".exe")):
+                size = os.path.getsize(os.path.join(PKG_DIR, f))
+                packages.append((f, size))
+    except FileNotFoundError:
+        pass
+
+    items = "".join(
+        f'<a class="btn" href="/download/{f}" download>{f} ({size/1048576:.1f} MB)</a>'
+        for f, size in packages
+    )
+    if not items:
+        items = '<p class="muted">Nenhum pacote disponível ainda.</p>'
+
+    html = f"""<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meu Controle Remoto — Download</title>
+<style>
+body{{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',system-ui,sans-serif;
+display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+.card{{background:#161b22;border:1px solid #30363d;border-radius:14px;padding:36px 40px;max-width:420px;text-align:center}}
+h1{{font-size:22px;margin:0 0 6px}} p{{color:#8b949e;margin:0 0 22px}}
+.btn{{display:block;background:#238636;color:#fff;text-decoration:none;padding:14px;
+border-radius:10px;font-size:15px;font-weight:600;margin:10px 0}}
+.btn:hover{{background:#2ea043}} .muted{{color:#484f58}}
+.tag{{display:inline-block;background:#1f6feb;color:#fff;font-size:11px;padding:2px 8px;
+border-radius:10px;vertical-align:middle;margin-left:8px}}</style></head>
+<body><div class="card">
+<h1>Meu Controle Remoto<span class="tag">KVM</span></h1>
+<p>Compartilhe teclado e mouse entre PCs (estilo Barrier). Baixe e instale nos dois PCs.</p>
+{items}
+<p class="muted">Descompacte e rode o MeuControle.exe em cada PC.</p>
+</div></body></html>"""
+    return web.Response(text=html, content_type="text/html")
+
+
+async def download(request: web.Request) -> web.Response:
+    name = request.match_info.get("name", "")
+    if not name or name not in os.listdir(PKG_DIR):
+        return web.Response(status=404, text="não encontrado")
+    path = os.path.join(PKG_DIR, name)
+    return web.FileResponse(path)
 
 
 class Relay:
@@ -133,6 +186,8 @@ class Relay:
 
     def app(self) -> web.Application:
         app = web.Application()
+        app.router.add_get("/", index)
+        app.router.add_get("/download/{name}", download)
         app.router.add_get("/ws", self.handler)
         return app
 
