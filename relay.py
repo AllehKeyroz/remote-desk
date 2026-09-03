@@ -103,7 +103,7 @@ class Relay:
         return other
 
     async def handler(self, request: web.Request) -> web.WebSocketResponse:
-        ws = web.WebSocketResponse(heartbeat=0, max_msg_size=8 * 1024 * 1024)
+        ws = web.WebSocketResponse(max_msg_size=8 * 1024 * 1024)
         await ws.prepare(request)
         peer_id = None
 
